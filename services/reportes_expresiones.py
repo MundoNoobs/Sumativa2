@@ -472,3 +472,125 @@ def consulta_alumnos_con_promedio_mayor(threshold):
         if promedio is not None and promedio > threshold:
             seleccion.append(doc)
     generar_reporte(seleccion, f'Alumnos con promedio > {threshold}')
+
+
+def consulta_logica_or(edad_umbral, nombre_parcial):
+    db = get_db()
+    filtro = {'$or': [{'edad': {'$gt': edad_umbral}}, {'nombre': {'$regex': nombre_parcial, '$options': 'i'}}]}
+    proy = {'nombre': 1, 'rut': 1, 'email': 1, 'edad': 1, 'telefono': 1, 'Asignaturas': 1}
+    cursor = db.alumnos.find(filtro, proy)
+    generar_reporte(cursor, f'Alumnos edad > {edad_umbral} OR nombre contiene "{nombre_parcial}"')
+
+
+def consulta_logica_and(edad_min, edad_max, email_parcial):
+    db = get_db()
+    filtro = {'$and': [{'edad': {'$gte': edad_min}}, {'edad': {'$lte': edad_max}}, {'email': {'$regex': email_parcial, '$options': 'i'}}]}
+    proy = {'nombre': 1, 'rut': 1, 'email': 1, 'edad': 1, 'telefono': 1, 'Asignaturas': 1}
+    cursor = db.alumnos.find(filtro, proy)
+    generar_reporte(cursor, f'Alumnos edad {edad_min}-{edad_max} AND email contiene "{email_parcial}"')
+
+
+def consulta_logica_not_nombre(nombre_parcial):
+    db = get_db()
+    filtro = {'nombre': {'$not': {'$regex': nombre_parcial, '$options': 'i'}}}
+    proy = {'nombre': 1, 'rut': 1, 'email': 1, 'edad': 1, 'telefono': 1}
+    cursor = db.alumnos.find(filtro, proy)
+    generar_reporte(cursor, f'Alumnos cuyo nombre NO contiene "{nombre_parcial}"')
+
+
+def consulta_in_ruts(ruts):
+    db = get_db()
+    filtro = {'rut': {'$in': ruts}}
+    proy = {'nombre': 1, 'rut': 1, 'email': 1}
+    cursor = db.alumnos.find(filtro, proy)
+    generar_reporte(cursor, 'Alumnos con RUT en la lista')
+
+
+def consulta_nin_codigos(codigos):
+    db = get_db()
+    filtro = {'codigo': {'$nin': codigos}}
+    proy = {'codigo': 1, 'nombre': 1}
+    cursor = db.asignaturas.find(filtro, proy)
+    generar_reporte(cursor, 'Asignaturas cuyo código NO está en la lista')
+
+
+def consulta_ne_rut(rut):
+    db = get_db()
+    filtro = {'rut': {'$ne': rut}}
+    proy = {'nombre': 1, 'rut': 1, 'email': 1}
+    cursor = db.alumnos.find(filtro, proy)
+    generar_reporte(cursor, f'Alumnos cuyo RUT != {rut}')
+
+
+def consulta_edad_gt(edad):
+    db = get_db()
+    filtro = {'edad': {'$gt': edad}}
+    proy = {'nombre': 1, 'rut': 1, 'edad': 1}
+    cursor = db.alumnos.find(filtro, proy)
+    generar_reporte(cursor, f'Alumnos con edad > {edad}')
+
+
+def consulta_edad_lt(edad):
+    db = get_db()
+    filtro = {'edad': {'$lt': edad}}
+    proy = {'nombre': 1, 'rut': 1, 'edad': 1}
+    cursor = db.alumnos.find(filtro, proy)
+    generar_reporte(cursor, f'Alumnos con edad < {edad}')
+
+
+def consulta_regex_empieza(texto):
+    db = get_db()
+    pattern = f'^{re.escape(texto)}'
+    filtro = {'nombre': {'$regex': pattern, '$options': 'i'}}
+    proy = {'nombre': 1, 'rut': 1}
+    cursor = db.alumnos.find(filtro, proy)
+    generar_reporte(cursor, f'Alumnos cuyo nombre empieza con "{texto}"')
+
+
+def consulta_regex_termina(texto):
+    db = get_db()
+    pattern = f'{re.escape(texto)}$'
+    filtro = {'nombre': {'$regex': pattern, '$options': 'i'}}
+    proy = {'nombre': 1, 'rut': 1}
+    cursor = db.alumnos.find(filtro, proy)
+    generar_reporte(cursor, f'Alumnos cuyo nombre termina con "{texto}"')
+
+
+def consulta_regex_not_like(texto):
+    db = get_db()
+    filtro = {'nombre': {'$not': {'$regex': texto, '$options': 'i'}}}
+    proy = {'nombre': 1, 'rut': 1}
+    cursor = db.alumnos.find(filtro, proy)
+    generar_reporte(cursor, f'Alumnos cuyo nombre NO coincide con patrón "{texto}"')
+
+
+def consulta_embedded_asignatura_nombre(nombre_parcial):
+    db = get_db()
+    filtro = {'Asignaturas.nombre': {'$regex': nombre_parcial, '$options': 'i'}}
+    proy = {'nombre': 1, 'rut': 1, 'Asignaturas': 1}
+    cursor = db.alumnos.find(filtro, proy)
+    generar_reporte(cursor, f'Alumnos con asignatura que contiene "{nombre_parcial}" en su nombre')
+
+
+def consulta_array_all_asignaturas(codigos):
+    db = get_db()
+    filtro = {'Asignaturas': {'$all': [{'$elemMatch': {'codigo': c}} for c in codigos]}}
+    proy = {'nombre': 1, 'rut': 1, 'Asignaturas': 1}
+    cursor = db.alumnos.find(filtro, proy)
+    generar_reporte(cursor, f'Alumnos que tienen todas las asignaturas: {", ".join(codigos)}')
+
+
+def consulta_elemMatch_notas(materia, nota_minima):
+    db = get_db()
+    filtro = {'notas': {'$elemMatch': {'materia': {'$regex': materia, '$options': 'i'}, 'nota': {'$gt': nota_minima}}}}
+    proy = {'nombre': 1, 'rut': 1, 'notas': 1}
+    cursor = db.alumnos.find(filtro, proy)
+    generar_reporte(cursor, f'Alumnos con nota > {nota_minima} en materia que contiene "{materia}"')
+
+
+def consulta_exists_field(campo):
+    db = get_db()
+    filtro = {campo: {'$exists': True}}
+    proy = {'nombre': 1, 'rut': 1, campo: 1}
+    cursor = db.alumnos.find(filtro, proy)
+    generar_reporte(cursor, f'Alumnos con campo existente "{campo}"')
