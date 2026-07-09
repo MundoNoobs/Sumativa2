@@ -5,6 +5,14 @@
             return v
         print('No puede quedar vacío.')
 
+
+def input_int(prompt):
+    while True:
+        v = input_non_empty(prompt)
+        if v.isdigit():
+            return int(v)
+        print('Debe ingresar un número válido.')
+
 try:
     from services import reportes_expresiones as reportes
 except Exception as e:
@@ -27,6 +35,11 @@ def main():
             print('7 Eliminar varios alumnos (delete_many)')
             print('8 Asignaturas')
             print('9 Notas (subdocumentos: $push/$pull)')
+            print('10 Consulta: alumnos por rango de edad')
+            print('11 Consulta: alumnos por nombre parcial')
+            print('12 Consulta: alumno por RUT')
+            print('13 Consulta: alumnos con promedio mayor que')
+            print('14 Consulta: asignaturas por código')
             print('r Reconectar BD')
             print('0 Salir')
             opc = input_non_empty('Opción: ')
@@ -73,6 +86,41 @@ def main():
             elif opc == '9':
                 if reportes is not None:
                     reportes.menu_notas()
+                else:
+                    print('Sin servicio de reportes.')
+            elif opc == '10':
+                if reportes is not None:
+                    min_e = input_int('Edad mínima: ')
+                    max_e = input_int('Edad máxima: ')
+                    reportes.consulta_alumnos_por_rango_edad(min_e, max_e)
+                else:
+                    print('Sin servicio de reportes.')
+            elif opc == '11':
+                if reportes is not None:
+                    name = input_non_empty('Texto nombre (parte): ')
+                    reportes.consulta_alumnos_por_nombre_parcial(name)
+                else:
+                    print('Sin servicio de reportes.')
+            elif opc == '12':
+                if reportes is not None:
+                    rut = input_non_empty('RUT: ')
+                    reportes.consulta_alumno_por_rut(rut)
+                else:
+                    print('Sin servicio de reportes.')
+            elif opc == '13':
+                if reportes is not None:
+                    thr = input_non_empty('Umbral promedio (ej 4.0): ')
+                    try:
+                        thr_val = float(thr)
+                    except Exception:
+                        print('Valor inválido.'); continue
+                    reportes.consulta_alumnos_con_promedio_mayor(thr_val)
+                else:
+                    print('Sin servicio de reportes.')
+            elif opc == '14':
+                if reportes is not None:
+                    code = input_non_empty('Código asignatura: ')
+                    reportes.consulta_listar_asignaturas_por_codigo(code)
                 else:
                     print('Sin servicio de reportes.')
             elif opc.lower() == 'r':

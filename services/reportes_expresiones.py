@@ -13,6 +13,36 @@ def get_db():
     return client[MONGO_DB]
 
 
+def generar_reporte(cursor, title):
+    header = f'=== {title} ==='
+    print('\n' + header)
+    print('=' * len(header))
+    i = 0
+    for doc in cursor:
+        i += 1
+        print(f'\n--- Documento {i} ---')
+        print('Nombre:', doc.get('nombre', 'N/A'))
+        print('RUT:', doc.get('rut', 'N/A'))
+        print('Email:', doc.get('email', 'N/A'))
+        print('Edad:', doc.get('edad', 'N/A'))
+        print('Telefono:', doc.get('telefono', 'N/A'))
+        asignaturas = doc.get('Asignaturas', [])
+        if not asignaturas:
+            print('Asignaturas promedio:', 'N/A')
+        else:
+            total = 0.0
+            cnt = 0
+            for a in asignaturas:
+                try:
+                    nota = a.get('nota', 0)
+                    total += float(nota)
+                    cnt += 1
+                except Exception:
+                    pass
+            promedio = total / cnt if cnt > 0 else None
+            print('Asignaturas promedio:', promedio if promedio is not None else 'N/A')
+
+
 def reconnect():
     global client, MONGO_URI, MONGO_DB
     load_dotenv()
@@ -387,3 +417,58 @@ def menu_asignaturas():
         elif opc == '3': listar_asignaturas()
         elif opc == '0': break
         else: print('Opción inválida')
+
+
+def consulta_alumnos_por_rango_edad(min_edad, max_edad):
+    db = get_db()
+    filtro = {'edad': {'$gte': min_edad, '$lte': max_edad}}
+    proy = {'nombre': 1, 'rut': 1, 'email': 1, 'edad': 1, 'telefono': 1, 'Asignaturas': 1}
+    cursor = db.alumnos.find(filtro, proy)
+    generar_reporte(cursor, f'Alumnos edad {min_edad}-{max_edad}')
+
+
+def consulta_alumnos_por_nombre_parcial(nombre_parcial):
+    db = get_db()
+    filtro = {'nombre': {'$regex': nombre_parcial, '$options': 'i'}}
+    proy = {'nombre': 1, 'rut': 1, 'email': 1, 'edad': 1, 'telefono': 1, 'Asignaturas': 1}
+    cursor = db.alumnos.find(filtro, proy)
+    generar_reporte(cursor, f'Alumnos con nombre que contiene {nombre_parcial}')
+
+
+def consulta_alumno_por_rut(rut):
+    db = get_db()
+    filtro = {'rut': rut.replace('.', '')}
+    proy = {'nombre': 1, 'rut': 1, 'email': 1, 'edad': 1, 'telefono': 1, 'Asignaturas': 1}
+    cursor = db.alumnos.find(filtro, proy)
+    generar_reporte(cursor, f'Alumno RUT {rut}')
+
+
+def consulta_listar_asignaturas_por_codigo(codigo):
+    db = get_db()
+    filtro = {'codigo': codigo}
+    proy = {'codigo': 1, 'nombre': 1}
+    cursor = db.asignaturas.find(filtro, proy)
+    generar_reporte(cursor, f'Asignaturas codigo {codigo}')
+
+
+def consulta_alumnos_con_promedio_mayor(threshold):
+    db = get_db()
+    filtro = {'Asignaturas': {'$exists': True, '$ne': []}}
+    proy = {'nombre': 1, 'rut': 1, 'email': 1, 'edad': 1, 'telefono': 1, 'Asignaturas': 1}
+    cursor = db.alumnos.find(filtro, proy)
+    seleccion = []
+    for doc in cursor:
+        asignaturas = doc.get('Asignaturas', [])
+        total = 0.0
+        cnt = 0
+        for a in asignaturas:
+            try:
+                nota = a.get('nota', 0)
+                total += float(nota)
+                cnt += 1
+            except Exception:
+                pass
+        promedio = total / cnt if cnt > 0 else None
+        if promedio is not None and promedio > threshold:
+            seleccion.append(doc)
+    generar_reporte(seleccion, f'Alumnos con promedio > {threshold}')
