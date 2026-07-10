@@ -490,10 +490,59 @@ def alumnos_con_todas_asignaturas(codigos):
 
 def alumnos_con_nota_en_materia(materia, nota_minima):
     db = get_db()
-    filtro = {'Asignaturas': {'$elemMatch': {'Nombre': {'$regex': materia, '$options': 'i'}, 'Notas': {'$elemMatch': {'$gt': nota_minima}}}}}
-    proy = {'nombre': 1, 'rut': 1, 'Asignaturas': 1, '_id': 0}
-    cursor = db.alumnos.find(filtro, proy)
-    generar_reporte(cursor, f'Alumnos con nota > {nota_minima} en "{materia}"')
+    
+    try:
+        nota_float = float(nota_minima)
+    except ValueError:
+        nota_float = 0.0
+
+    filtro = {
+        'Asignaturas': {
+            '$elemMatch': {
+                'Nombre': {'$regex': materia, '$options': 'i'},
+                'Notas': {'$gt': nota_float}
+            }
+        }
+    }
+    
+    proy = {'nombre': 1, 'rut': 1, 'email': 1, 'edad': 1, 'telefono': 1, 'Asignaturas': 1, '_id': 0}
+    cursor = list(db.alumnos.find(filtro, proy))
+    
+    print(f"\n{'='*50}\n REPORTE: Alumnos con nota > {nota_float} en '{materia}'\n{'='*50}")
+    
+    if not cursor:
+        print("No se encontraron resultados.")
+        return
+
+    patron = re.compile(materia, re.IGNORECASE)
+    contador = 1
+    
+    for doc in cursor:
+        print(f"\n--- Documento {contador} ---")
+        print(f"Nombre: {doc.get('nombre', 'N/A')}")
+        print(f"RUT: {doc.get('rut', 'N/A')}")
+        print(f"Email: {doc.get('email', 'N/A')}")
+        print(f"Edad: {doc.get('edad', 'N/A')}")
+        print(f"Telefono: {doc.get('telefono', 'N/A')}")
+        
+        asignaturas = doc.get('Asignaturas', [])
+        promedio_materia = "N/A"
+        materia_encontrada = materia
+        
+        for asig in asignaturas:
+            nombre_asig = asig.get('Nombre', '')
+            if patron.search(nombre_asig):
+                notas_list = asig.get('Notas', [])
+                materia_encontrada = nombre_asig
+                if isinstance(notas_list, list) and len(notas_list) > 0:
+                    suma_notas = sum(float(n) for n in notas_list)
+                    promedio_materia = round(suma_notas / len(notas_list), 2)
+                break
+        
+        print(f"Promedio en {materia_encontrada}: {promedio_materia}")
+        contador += 1
+        
+    print(f"\n{'='*50}")
 
 def alumnos_por_ruts(ruts):
     db = get_db()
