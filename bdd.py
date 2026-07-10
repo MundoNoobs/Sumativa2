@@ -45,6 +45,10 @@ def main():
             print('16. Buscar alumnos con nota mínima en materia')
             print('17. Buscar alumnos por lista de RUTs')
             print('18. Buscar alumnos que tienen un campo específico')
+            print('19. Buscar alumnos por edad o nombre (Lógica OR)')
+            print('20. Buscar alumnos por edad y correo (Lógica AND)')
+            print('21. Listar asignaturas excluyendo códigos (Lógica NOT IN)')
+            print('22. Buscar alumnos con RUT distinto (Lógica NOT EQUAL)')
             print('r Reconectar BD')
             print('0 Salir')
             opc = input_non_empty('Opción: ')
@@ -155,6 +159,34 @@ def main():
                     csv = input_non_empty('RUTs separados por coma: ')
                     ruts = [r.strip().replace('.', '') for r in csv.split(',') if r.strip()]
                     reportes.alumnos_por_ruts(ruts)
+                else:
+                    print('Sin servicio de reportes.')
+            elif opc == '19':
+                if reportes is not None:
+                    edad = input_int('Edad umbral: ')
+                    txt = input_non_empty('Texto nombre parcial: ')
+                    reportes.alumnos_edad_o_nombre(edad, txt)
+                else:
+                    print('Sin servicio de reportes.')
+            elif opc == '20':
+                if reportes is not None:
+                    min_e = input_int('Edad mínima: ')
+                    max_e = input_int('Edad máxima: ')
+                    emailp = input_non_empty('Texto a buscar en email: ')
+                    reportes.alumnos_edad_rango_con_email(min_e, max_e, emailp)
+                else:
+                    print('Sin servicio de reportes.')
+            elif opc == '21':
+                if reportes is not None:
+                    csv = input_non_empty('Códigos asignatura a excluir, separados por coma: ')
+                    codes = [c.strip() for c in csv.split(',') if c.strip()]
+                    reportes.asignaturas_excluyendo_codigos(codes)
+                else:
+                    print('Sin servicio de reportes.')
+            elif opc == '22':
+                if reportes is not None:
+                    rut = input_non_empty('RUT a excluir: ')
+                    reportes.alumnos_rut_distinto(rut.replace('.', ''))
                 else:
                     print('Sin servicio de reportes.')
             elif opc == '18':
