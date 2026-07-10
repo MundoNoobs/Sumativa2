@@ -33,13 +33,15 @@ def generar_reporte(cursor, title):
             total = 0.0
             cnt = 0
             for a in asignaturas:
-                try:
-                    nota = a.get('nota', 0)
-                    total += float(nota)
-                    cnt += 1
-                except Exception:
-                    pass
-            promedio = total / cnt if cnt > 0 else None
+                notas_list = a.get('Notas', [])
+                if isinstance(notas_list, list):
+                    for n in notas_list:
+                        try:
+                            total += float(n)
+                            cnt += 1
+                        except Exception:
+                            continue
+            promedio = round(total / cnt, 2) if cnt > 0 else None
             print('Asignaturas promedio:', promedio if promedio is not None else 'N/A')
 
 
@@ -125,7 +127,7 @@ def insertar_alumno():
             'email': email,
             'edad': edad,
             'telefono': telefono,
-            'notas': []
+            'Asignaturas': []
         }
         res = db.alumnos.insert_one(alumno)
         print('Alumno insertado _id:', res.inserted_id)
@@ -163,7 +165,7 @@ def insertar_varios_alumnos():
                 'email': email,
                 'edad': edad,
                 'telefono': telefono,
-                'notas': []
+                'Asignaturas': []
             }
             docs.append(alumno)
         confirmar = input_non_empty(f'Insertar {len(docs)} alumnos? s/n: ')
@@ -190,8 +192,9 @@ def buscar_alumnos():
             q['nombre'] = {'$regex': nombre, '$options': 'i'}
         else:
             q = {}
-        for a in db.alumnos.find(q):
-            print(a)
+        proy = {'nombre': 1, 'rut': 1, 'email': 1, 'edad': 1, 'telefono': 1, 'Asignaturas': 1}
+        cursor = db.alumnos.find(q, proy)
+        generar_reporte(cursor, 'Resultados de búsqueda')
     except Exception as e:
         print('Error en búsqueda:', e)
 
@@ -329,7 +332,8 @@ def insertar_varias_asignaturas():
 def listar_asignaturas():
     try:
         db = get_db()
-        for s in db.asignaturas.find({}):
+        proy = {'codigo': 1, 'nombre': 1}
+        for s in db.asignaturas.find({}, proy):
             print(s)
     except Exception as e:
         print('Error listar asignaturas:', e)
@@ -339,15 +343,19 @@ def agregar_nota():
     try:
         db = get_db()
         rut = input_non_empty('RUT: ')
-        materia = input_non_empty('Código materia: ')
+        materia = input_non_empty('Nombre materia: ')
         valor = input_non_empty('Valor nota (número): ')
         try:
             nota_val = float(valor)
         except:
             print('Nota debe ser numérica.'); return
-        nota = {'materia': materia, 'nota': nota_val}
-        res = db.alumnos.update_one({'rut': rut.replace('.', '')}, {'$push': {'notas': nota}})
-        print('Notas actualizadas, matched:', res.matched_count, 'modified:', res.modified_count)
+        rut_db = rut.replace('.', '')
+        res = db.alumnos.update_one({'rut': rut_db, 'Asignaturas.Nombre': materia}, {'$push': {'Asignaturas.$.Notas': nota_val}})
+        if res.matched_count == 0:
+            res2 = db.alumnos.update_one({'rut': rut_db}, {'$push': {'Asignaturas': {'Nombre': materia, 'Notas': [nota_val]}}})
+            print('Asignatura agregada con nota, matched:', res2.matched_count, 'modified:', res2.modified_count)
+        else:
+            print('Nota agregada a asignatura existente, matched:', res.matched_count, 'modified:', res.modified_count)
     except Exception as e:
         print('Error agregar nota:', e)
 
@@ -356,13 +364,15 @@ def ver_notas():
     try:
         db = get_db()
         rut = input_non_empty('RUT: ')
-        a = db.alumnos.find_one({'rut': rut.replace('.', '')}, {'notas': 1, 'nombre':1})
+        a = db.alumnos.find_one({'rut': rut.replace('.', '')}, {'Asignaturas': 1, 'nombre':1})
         if not a:
             print('Alumno no encontrado.')
             return
         print('Alumno:', a.get('nombre'))
-        for n in a.get('notas', []):
-            print('-', n)
+        for s in a.get('Asignaturas', []):
+            nombre = s.get('Nombre', 'N/A')
+            notas = s.get('Notas', [])
+            print('-', nombre, ':', notas)
     except Exception as e:
         print('Error ver notas:', e)
 
@@ -377,7 +387,8 @@ def modificar_nota():
             nueva_val = float(nueva)
         except:
             print('Valor inválido.'); return
-        res = db.alumnos.update_one({'rut': rut.replace('.', ''), 'notas.materia': materia}, {'$set': {'notas.$.nota': nueva_val}})
+        rut_db = rut.replace('.', '')
+        res = db.alumnos.update_one({'rut': rut_db, 'Asignaturas.Nombre': materia}, {'$set': {'Asignaturas.$.Notas.0': nueva_val}})
         print('Matched:', res.matched_count, 'Modified:', res.modified_count)
     except Exception as e:
         print('Error modificar nota:', e)
@@ -387,9 +398,9 @@ def eliminar_nota():
     try:
         db = get_db()
         rut = input_non_empty('RUT: ')
-        materia = input_non_empty('Código materia a eliminar de las notas: ')
-        res = db.alumnos.update_one({'rut': rut.replace('.', '')}, {'$pull': {'notas': {'materia': materia}}})
-        print('Notas modificadas (pull), modified_count:', res.modified_count)
+        materia = input_non_empty('Nombre materia a eliminar de las asignaturas: ')
+        res = db.alumnos.update_one({'rut': rut.replace('.', '')}, {'$pull': {'Asignaturas': {'Nombre': materia}}})
+        print('Asignaturas eliminadas (pull), modified_count:', res.modified_count)
     except Exception as e:
         print('Error eliminar nota:', e)
 
@@ -421,7 +432,13 @@ def menu_asignaturas():
 
 def alumnos_por_rango_edad(min_edad, max_edad):
     db = get_db()
-    filtro = {'edad': {'$gte': min_edad, '$lte': max_edad}}
+    filtro = {}
+    if min_edad > 0 and max_edad > 0:
+        filtro = {'edad': {'$gte': min_edad, '$lte': max_edad}}
+    elif min_edad > 0:
+        filtro = {'edad': {'$gte': min_edad}}
+    elif max_edad > 0:
+        filtro = {'edad': {'$lte': max_edad}}
     proy = {'nombre': 1, 'rut': 1, 'email': 1, 'edad': 1, 'telefono': 1, 'Asignaturas': 1}
     cursor = db.alumnos.find(filtro, proy)
     generar_reporte(cursor, f'Alumnos con edad entre {min_edad} y {max_edad}')
@@ -462,12 +479,14 @@ def alumnos_con_promedio_mayor(threshold):
         total = 0.0
         cnt = 0
         for a in asignaturas:
-            try:
-                nota = a.get('nota', 0)
-                total += float(nota)
-                cnt += 1
-            except Exception:
-                pass
+            notas_list = a.get('Notas', [])
+            if isinstance(notas_list, list):
+                for n in notas_list:
+                    try:
+                        total += float(n)
+                        cnt += 1
+                    except Exception:
+                        continue
         promedio = total / cnt if cnt > 0 else None
         if promedio is not None and promedio > threshold:
             seleccion.append(doc)
@@ -490,12 +509,28 @@ def alumnos_edad_rango_con_email(edad_min, edad_max, email_parcial):
     generar_reporte(cursor, f'Alumnos con edad entre {edad_min} y {edad_max} y email que contiene "{email_parcial}"')
 
 
-def alumnos_nombre_excluye(nombre_parcial):
+def buscar_alumnos_avanzado_texto(texto, tipo):
     db = get_db()
-    filtro = {'nombre': {'$not': {'$regex': nombre_parcial, '$options': 'i'}}}
-    proy = {'nombre': 1, 'rut': 1, 'email': 1, 'edad': 1, 'telefono': 1}
+    if tipo == 1:
+        filtro = {'nombre': {'$regex': texto, '$options': 'i'}}
+        desc = 'contiene'
+    elif tipo == 2:
+        pattern = f'^{re.escape(texto)}'
+        filtro = {'nombre': {'$regex': pattern, '$options': 'i'}}
+        desc = 'empieza con'
+    elif tipo == 3:
+        pattern = f'{re.escape(texto)}$'
+        filtro = {'nombre': {'$regex': pattern, '$options': 'i'}}
+        desc = 'termina con'
+    elif tipo == 4:
+        filtro = {'nombre': {'$not': {'$regex': texto, '$options': 'i'}}}
+        desc = 'no contiene'
+    else:
+        print('Opción de búsqueda no válida')
+        return
+    proy = {'nombre': 1, 'rut': 1, 'email': 1, 'edad': 1, 'telefono': 1, 'Asignaturas': 1}
     cursor = db.alumnos.find(filtro, proy)
-    generar_reporte(cursor, f'Alumnos cuyo nombre no contiene "{nombre_parcial}"')
+    generar_reporte(cursor, f'Búsqueda avanzada: nombre {desc} "{texto}"')
 
 
 def alumnos_por_ruts(ruts):
@@ -522,20 +557,7 @@ def alumnos_rut_distinto(rut):
     generar_reporte(cursor, f'Alumnos cuyo RUT es distinto a {rut}')
 
 
-def alumnos_edad_mayor_que(edad):
-    db = get_db()
-    filtro = {'edad': {'$gt': edad}}
-    proy = {'nombre': 1, 'rut': 1, 'edad': 1}
-    cursor = db.alumnos.find(filtro, proy)
-    generar_reporte(cursor, f'Alumnos con edad mayor que {edad}')
 
-
-def alumnos_edad_menor_que(edad):
-    db = get_db()
-    filtro = {'edad': {'$lt': edad}}
-    proy = {'nombre': 1, 'rut': 1, 'edad': 1}
-    cursor = db.alumnos.find(filtro, proy)
-    generar_reporte(cursor, f'Alumnos con edad menor que {edad}')
 
 
 def alumnos_nombre_empieza_con(texto):
@@ -566,7 +588,7 @@ def alumnos_nombre_no_coincide_con(texto):
 
 def alumnos_por_asignatura_nombre(nombre_parcial):
     db = get_db()
-    filtro = {'Asignaturas.nombre': {'$regex': nombre_parcial, '$options': 'i'}}
+    filtro = {'Asignaturas.Nombre': {'$regex': nombre_parcial, '$options': 'i'}}
     proy = {'nombre': 1, 'rut': 1, 'Asignaturas': 1}
     cursor = db.alumnos.find(filtro, proy)
     generar_reporte(cursor, f'Alumnos con asignatura cuyo nombre contiene "{nombre_parcial}"')
@@ -574,7 +596,7 @@ def alumnos_por_asignatura_nombre(nombre_parcial):
 
 def alumnos_con_todas_asignaturas(codigos):
     db = get_db()
-    filtro = {'Asignaturas': {'$all': [{'$elemMatch': {'codigo': c}} for c in codigos]}}
+    filtro = {'Asignaturas': {'$all': [{'$elemMatch': {'Nombre': c}} for c in codigos]}}
     proy = {'nombre': 1, 'rut': 1, 'Asignaturas': 1}
     cursor = db.alumnos.find(filtro, proy)
     generar_reporte(cursor, f'Alumnos que tienen todas las asignaturas: {", ".join(codigos)}')
@@ -582,8 +604,8 @@ def alumnos_con_todas_asignaturas(codigos):
 
 def alumnos_con_nota_en_materia(materia, nota_minima):
     db = get_db()
-    filtro = {'notas': {'$elemMatch': {'materia': {'$regex': materia, '$options': 'i'}, 'nota': {'$gt': nota_minima}}}}
-    proy = {'nombre': 1, 'rut': 1, 'notas': 1}
+    filtro = {'Asignaturas': {'$elemMatch': {'Nombre': {'$regex': materia, '$options': 'i'}, 'Notas': {'$elemMatch': {'$gt': nota_minima}}}}}
+    proy = {'nombre': 1, 'rut': 1, 'Asignaturas': 1}
     cursor = db.alumnos.find(filtro, proy)
     generar_reporte(cursor, f'Alumnos con nota mayor a {nota_minima} en materia que contiene "{materia}"')
 
